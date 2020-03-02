@@ -9,16 +9,6 @@ public class PriceData implements Serializable {
     float open;
     float volume;
 
-    public float getAveragePrice() {
-        return averagePrice;
-    }
-
-    public void setAveragePrice(float averagePrice) {
-        this.averagePrice = averagePrice;
-    }
-
-    float averagePrice;
-
     public float getClose() {
         return close;
     }
@@ -67,7 +57,6 @@ public class PriceData implements Serializable {
                 ", low=" + low +
                 ", open=" + open +
                 ", volume=" + volume +
-                ", averagePrice=" + averagePrice +
                 '}';
     }
 }

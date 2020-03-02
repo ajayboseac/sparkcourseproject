@@ -46,7 +46,6 @@ public class StockDataAnalyzer {
 
                 // Parsing the JSON String
                 StockData stockData = mapper.readValue(x, mapType);
-                stockData.priceData.setAveragePrice((stockData.priceData.low + stockData.priceData.high) / 2);
 
                 return new Tuple2<String, Tuple2<StockData, Integer>>(stockData.getSymbol(), new Tuple2<StockData, Integer>(stockData, 1));
 
@@ -61,18 +60,28 @@ public class StockDataAnalyzer {
                         ConsumerStrategies.Subscribe(topics, kafkaParams)
                 );
 
+        stream.mapToPair(it -> pairFunction.call(it.value())).map(it -> {
+            System.out.println("Incoming batch:");
+            return it;
+        }).print();
+
 
         stream.mapToPair(it -> pairFunction.call(it.value()))
                 .window(Durations.minutes(10), Durations.minutes(5))
                 .reduceByKey((Tuple2<StockData, Integer> x, Tuple2<StockData, Integer> y) -> {
                     int outputY = x._2 + y._2;
-                    float newAveragePrice = x._1.priceData.averagePrice + y._1.priceData.averagePrice;
+                    float aggregatedClosePrice = x._1.priceData.close + y._1.priceData.close;
                     PriceData newpriceData = new PriceData();
-                    newpriceData.setAveragePrice(newAveragePrice);
+                    newpriceData.setClose(aggregatedClosePrice);
                     StockData newStockData = new StockData();
                     newStockData.setPriceData(newpriceData);
-                    return new Tuple2<StockData,Integer>(newStockData, outputY);
-                }).mapValues(it->it._1.priceData.averagePrice/it._2).print();
+                    return new Tuple2<StockData, Integer>(newStockData, outputY);
+                })
+                .mapValues(it -> it._1.priceData.close / it._2)
+                .map(it -> { return it; })
+                .transform(rdd -> { System.out.println("Moving average of close price: ");return rdd; })
+                .print();
+
 
         stream.mapToPair(it -> pairFunction.call(it.value()))
                 .window(Durations.minutes(10), Durations.minutes(5))
@@ -87,11 +96,17 @@ public class StockDataAnalyzer {
                     newStockData.setPriceData(newpriceData);
                     return new Tuple2<StockData, Integer>(newStockData, outputY);
                 }).mapValues(it -> {
-                    return it._1.priceData.open / it._2 - it._1.priceData.close / it._2;
+            return it._1.priceData.open / it._2 - it._1.priceData.close / it._2;
+        })
+                .reduce((x, y) -> {
+                    if (x._2 > y._2) {
+                        return x;
+                    } else {
+                        return y;
+                    }
                 })
-                .mapToPair(Tuple2::swap)
-                .transformToPair(s -> s.sortByKey(false)).print();
-
+                .transform(rdd -> { System.out.println("Stock giving maximum profit: ");return rdd; })
+                .print();
 
 
 //        sortedData.transformToPair(rdd->rdd.filter(rdd.take(1).toArray().));
